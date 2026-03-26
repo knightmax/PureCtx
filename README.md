@@ -126,38 +126,48 @@ on_error = "fail"          # propagate the error
 
 ## Gain Dashboard
 
-`pure` tracks token savings across all filtered commands. View savings with:
+`pure` tracks token savings across all filtered commands with a gamified
+dashboard. View savings with:
 
 ```bash
 pure gain
 ```
 
 ```
-  pure — Token Savings Report
-  ══════════════════════════════
+  ┌─────────────────────────────────────────┐
+  │  🧹 PureCtx — Token Savings Dashboard  │
+  └─────────────────────────────────────────┘
 
-  Commands filtered     3
-  Tokens saved          32.8K
-  Avg savings           93.6%
-  Efficiency            Elite
-  Total time            20.3s
+  ╔═════════════════════════════╗
+  ║     🏆     Platine      🏆     ║
+  ╚═════════════════════════════╝
 
-  ███████████████████░ 94%
+  📊 Summary
+  ───────────────────────────────
+  🔢 Commands filtered     3
+  💰 Tokens saved          32.8K
+  📉 Avg savings           93.6%
+  ⏱️  Total time            20.3s
 
-  Top commands by tokens saved
+  🎯 Progress
+  ───────────────────────────────
+  🏆 ███████████████████░ 94%  Platine
+  ✨ Max level reached!
 
+  🏅 Top commands by tokens saved
+  ───────────────────────────────
   Command                         Runs     Saved  Savings  Impact
   ──────────────────────────────  ─────  ────────  ───────  ────────────
-  cargo test                         1     19.5K    97.5%  ████████████
-  mvn clean install                  1      9.0K    90.0%  ██████░░░░░░
-  npm run build                      1      4.2K    85.0%  ███░░░░░░░░░
+  🥇 cargo test                      1     19.5K    97.5%  ████████████
+  🥈 mvn clean install               1      9.0K    90.0%  ██████░░░░░░
+  🥉 npm run build                   1      4.2K    85.0%  ███░░░░░░░░░
 ```
 
 ### Views
 
 | Flag | Description |
 |------|-------------|
-| *(none)* | Full dashboard: KPIs + progress bar + top 10 commands |
+| *(none)* | Full dashboard: tier badge + KPIs + progress + top 10 commands |
 | `--daily` | Daily breakdown (last 7 days) |
 | `--weekly` | Weekly breakdown (last 8 weeks) |
 | `--monthly` | Monthly breakdown (last 6 months) |
@@ -166,15 +176,15 @@ pure gain
 | `--json` | Full report as JSON (summary + daily + by_command) |
 | `--csv` | Daily stats as CSV |
 
-### Efficiency tiers
+### Tier system
 
-| Tier | Threshold |
-|------|-----------|
-| Elite | ≥ 90% |
-| Great | ≥ 70% |
-| Good | ≥ 50% |
-| Fair | ≥ 30% |
-| Low | < 30% |
+| Tier | Emoji | Threshold |
+|------|-------|-----------|
+| 🏆 Platine | 🏆 | ≥ 90% |
+| 💎 Diamant | 💎 | ≥ 70% |
+| 🥇 Or | 🥇 | ≥ 50% |
+| 🥈 Argent | 🥈 | ≥ 30% |
+| 🥉 Bronze | 🥉 | < 30% |
 
 ### Tracking database
 

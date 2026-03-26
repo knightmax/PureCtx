@@ -91,7 +91,8 @@ fn gain_shows_empty_dashboard() {
         .args(["gain"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Token Savings Report"));
+        .stdout(predicate::str::contains("Token Savings Dashboard"))
+        .stdout(predicate::str::contains("Bronze"));
 }
 
 #[test]

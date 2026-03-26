@@ -185,18 +185,44 @@ impl TrackingDb {
     }
 
     /// Efficiency tier label based on average savings.
+    ///
+    /// Uses French metallic tier names for gamification:
+    /// Platine (≥90%), Diamant (≥70%), Or (≥50%), Argent (≥30%), Bronze (<30%).
     pub fn efficiency_tier(&self) -> &'static str {
         let pct = self.avg_savings_pct();
         if pct >= 90.0 {
-            "Elite"
+            "Platine"
         } else if pct >= 70.0 {
-            "Great"
+            "Diamant"
         } else if pct >= 50.0 {
-            "Good"
+            "Or"
         } else if pct >= 30.0 {
-            "Fair"
+            "Argent"
         } else {
-            "Low"
+            "Bronze"
+        }
+    }
+
+    /// Emoji associated with the current efficiency tier.
+    pub fn tier_emoji(&self) -> &'static str {
+        match self.efficiency_tier() {
+            "Platine" => "\u{1F3C6}", // 🏆
+            "Diamant" => "\u{1F48E}", // 💎
+            "Or" => "\u{1F947}",      // 🥇
+            "Argent" => "\u{1F948}",  // 🥈
+            _ => "\u{1F949}",         // 🥉
+        }
+    }
+
+    /// Information about the next tier: `(next_tier_name, next_tier_emoji,
+    /// threshold_pct)`. Returns `None` if already at the highest tier (Platine).
+    pub fn next_tier_info(&self) -> Option<(&'static str, &'static str, f64)> {
+        match self.efficiency_tier() {
+            "Platine" => None,
+            "Diamant" => Some(("Platine", "\u{1F3C6}", 90.0)),
+            "Or" => Some(("Diamant", "\u{1F48E}", 70.0)),
+            "Argent" => Some(("Or", "\u{1F947}", 50.0)),
+            _ => Some(("Argent", "\u{1F948}", 30.0)),
         }
     }
 
@@ -433,7 +459,7 @@ mod tests {
         assert_eq!(db.total_input_tokens(), 3000); // 1000 + 2000
         assert_eq!(db.total_saved_tokens(), 2700); // 900 + 1800
         assert!((db.avg_savings_pct() - 90.0).abs() < 0.1);
-        assert_eq!(db.efficiency_tier(), "Elite");
+        assert_eq!(db.efficiency_tier(), "Platine");
     }
 
     #[test]
@@ -482,27 +508,37 @@ mod tests {
         let mut db = TrackingDb::default();
         db.records
             .push(TrackingRecord::new("cmd", "f", 4000, 400, 100)); // 90%
-        assert_eq!(db.efficiency_tier(), "Elite");
+        assert_eq!(db.efficiency_tier(), "Platine");
+        assert_eq!(db.tier_emoji(), "\u{1F3C6}"); // 🏆
+        assert!(db.next_tier_info().is_none()); // max tier
 
         let mut db2 = TrackingDb::default();
         db2.records
             .push(TrackingRecord::new("cmd", "f", 4000, 1200, 100)); // 70%
-        assert_eq!(db2.efficiency_tier(), "Great");
+        assert_eq!(db2.efficiency_tier(), "Diamant");
+        assert_eq!(db2.tier_emoji(), "\u{1F48E}"); // 💎
+        assert_eq!(db2.next_tier_info().unwrap().0, "Platine");
 
         let mut db3 = TrackingDb::default();
         db3.records
             .push(TrackingRecord::new("cmd", "f", 4000, 2000, 100)); // 50%
-        assert_eq!(db3.efficiency_tier(), "Good");
+        assert_eq!(db3.efficiency_tier(), "Or");
+        assert_eq!(db3.tier_emoji(), "\u{1F947}"); // 🥇
+        assert_eq!(db3.next_tier_info().unwrap().0, "Diamant");
 
         let mut db4 = TrackingDb::default();
         db4.records
             .push(TrackingRecord::new("cmd", "f", 4000, 2800, 100)); // 30%
-        assert_eq!(db4.efficiency_tier(), "Fair");
+        assert_eq!(db4.efficiency_tier(), "Argent");
+        assert_eq!(db4.tier_emoji(), "\u{1F948}"); // 🥈
+        assert_eq!(db4.next_tier_info().unwrap().0, "Or");
 
         let mut db5 = TrackingDb::default();
         db5.records
             .push(TrackingRecord::new("cmd", "f", 4000, 3200, 100)); // 20%
-        assert_eq!(db5.efficiency_tier(), "Low");
+        assert_eq!(db5.efficiency_tier(), "Bronze");
+        assert_eq!(db5.tier_emoji(), "\u{1F949}"); // 🥉
+        assert_eq!(db5.next_tier_info().unwrap().0, "Argent");
     }
 
     #[test]
