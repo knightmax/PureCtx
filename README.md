@@ -139,7 +139,7 @@ pure gain
   └─────────────────────────────────────────┘
 
   ╔═════════════════════════════╗
-  ║     🏆     Platine      🏆     ║
+  ║     🏆     Platinum     🏆     ║
   ╚═════════════════════════════╝
 
   📊 Summary
@@ -151,7 +151,7 @@ pure gain
 
   🎯 Progress
   ───────────────────────────────
-  🏆 ███████████████████░ 94%  Platine
+  🏆 ███████████████████░ 94%  Platinum
   ✨ Max level reached!
 
   🏅 Top commands by tokens saved
@@ -180,10 +180,10 @@ pure gain
 
 | Tier | Emoji | Threshold |
 |------|-------|-----------|
-| 🏆 Platine | 🏆 | ≥ 90% |
-| 💎 Diamant | 💎 | ≥ 70% |
-| 🥇 Or | 🥇 | ≥ 50% |
-| 🥈 Argent | 🥈 | ≥ 30% |
+| 🏆 Platinum | 🏆 | ≥ 90% |
+| 💎 Diamond | 💎 | ≥ 70% |
+| 🥇 Gold | 🥇 | ≥ 50% |
+| 🥈 Silver | 🥈 | ≥ 30% |
 | 🥉 Bronze | 🥉 | < 30% |
 
 ### Tracking database
