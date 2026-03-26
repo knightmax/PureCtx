@@ -1,0 +1,45 @@
+name = "npm"
+version = 1
+description = "Reduces npm output noise for LLM context"
+
+[match]
+command = "npm"
+aliases = ["npx", "pnpm", "yarn"]
+
+[[pipeline]]
+action = "strip_ansi"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "(?i)^npm warn"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "(?i)^npm notice"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "(?i)^npm timing"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "(?i)^npm http"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^added \\d+ packages?"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^up to date"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^\\d+ packages are looking for funding"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^  run `npm fund`"
+
+[[pipeline]]
+action = "remove_empty_lines"

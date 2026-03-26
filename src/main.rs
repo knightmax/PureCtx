@@ -1,14 +1,11 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::Parser;
 
-use purectx::domain::Purifier;
-use purectx::domain::clean::CleanOptions;
-use purectx::domain::clean::CleanPurifier;
-use purectx::domain::sift::SiftPurifier;
-use purectx::domain::snip::SnipPurifier;
-use purectx::domain::stats::StatsPurifier;
-use purectx::infra::cli::{Cli, Commands};
-use purectx::infra::io::run_stdio;
+use purectx::domain::filter::FilterFile;
+use purectx::infra::builtin::load_builtin_filters;
+use purectx::infra::cli::{Cli, Commands, FilterAction};
+use purectx::infra::config;
+use purectx::infra::proxy::run_proxy;
 
 fn main() {
     if let Err(e) = run() {
@@ -17,36 +14,104 @@ fn main() {
     }
 }
 
-/// Parse arguments, build the purifier list, and run the engine.
+/// Parse arguments, resolve filters, and either proxy a command or manage
+/// filters.
 fn run() -> Result<()> {
     let cli = Cli::parse();
 
-    let purifiers: Vec<Box<dyn Purifier>> = match cli.command {
-        Commands::Sift(args) => {
-            let sift = SiftPurifier::new(args.include.as_deref(), args.exclude.as_deref())
-                .context("failed to build sift purifier")?;
-            vec![Box::new(sift)]
-        }
+    // Handle the `filter` management subcommand.
+    if let Some(Commands::Filter(cmd)) = cli.command {
+        return handle_filter_command(cmd.action);
+    }
 
-        Commands::Snip(args) => {
-            let snip = SnipPurifier::new(&args.start, &args.end, args.inclusive)
-                .context("failed to build snip purifier")?;
-            vec![Box::new(snip)]
-        }
+    // Otherwise, treat everything as an external command to proxy.
+    if cli.external.is_empty() {
+        bail!(
+            "no command specified. Usage: pure <COMMAND> [ARGS...]\n\nRun `pure --help` for more information."
+        );
+    }
 
-        Commands::Clean(args) => {
-            let opts = CleanOptions {
-                remove_comments: !args.no_comments,
-                remove_empty_lines: !args.no_empty_lines,
-                minify_indent: !args.no_minify_indent,
-            };
-            vec![Box::new(CleanPurifier::new(opts))]
-        }
+    let command = &cli.external[0];
+    let args: Vec<String> = cli.external[1..].to_vec();
 
-        Commands::Stats => {
-            vec![Box::new(StatsPurifier::new())]
-        }
-    };
+    // Load all filters (built-in + custom) and find one matching the command.
+    let filter = find_matching_filter(command, &args)?;
 
-    run_stdio(purifiers)
+    if let Some(ref f) = filter {
+        eprintln!("[pure] using filter: {} ({})", f.name, f.description);
+    }
+
+    let exit_code = run_proxy(command, &args, filter.as_ref())?;
+    std::process::exit(exit_code);
+}
+
+/// Find the first filter that matches the given command and arguments.
+///
+/// Custom filters take priority over built-in ones.
+fn find_matching_filter(command: &str, args: &[String]) -> Result<Option<FilterFile>> {
+    // Custom filters first (they override built-in ones).
+    let customs = config::load_custom_filters().context("failed to load custom filters")?;
+    for f in customs {
+        if f.matches(command, args) {
+            return Ok(Some(f));
+        }
+    }
+
+    // Then built-in filters.
+    let builtins = load_builtin_filters().context("failed to load built-in filters")?;
+    for f in builtins {
+        if f.matches(command, args) {
+            return Ok(Some(f));
+        }
+    }
+
+    Ok(None)
+}
+
+/// Handle `pure filter {add|list|show}` management commands.
+fn handle_filter_command(action: FilterAction) -> Result<()> {
+    match action {
+        FilterAction::Add(args) => {
+            let name = config::add_filter(&args.file).context("failed to install filter")?;
+            eprintln!("Filter `{name}` installed successfully.");
+            Ok(())
+        }
+        FilterAction::List => {
+            let filters = config::list_filters()?;
+            if filters.is_empty() {
+                println!("No filters available.");
+            } else {
+                println!("{:<20} {:<12} DESCRIPTION", "NAME", "SOURCE");
+                println!("{}", "-".repeat(60));
+                for (name, desc, source) in &filters {
+                    println!("{:<20} {:<12} {}", name, source, desc);
+                }
+            }
+            Ok(())
+        }
+        FilterAction::Show(args) => {
+            // Try custom first, then built-in.
+            let customs = config::load_custom_filters()?;
+            for f in &customs {
+                if f.name == args.name {
+                    println!(
+                        "{}",
+                        toml::to_string_pretty(f).context("failed to serialize filter")?
+                    );
+                    return Ok(());
+                }
+            }
+            let builtins = load_builtin_filters()?;
+            for f in &builtins {
+                if f.name == args.name {
+                    println!(
+                        "{}",
+                        toml::to_string_pretty(f).context("failed to serialize filter")?
+                    );
+                    return Ok(());
+                }
+            }
+            bail!("filter `{}` not found", args.name);
+        }
+    }
 }

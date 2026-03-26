@@ -1,0 +1,33 @@
+name = "gradle"
+version = 1
+description = "Reduces Gradle build output noise for LLM context"
+
+[match]
+command = "gradle"
+aliases = ["gradlew", "./gradlew"]
+
+[[pipeline]]
+action = "strip_ansi"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^Download "
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^Downloading "
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^> Task :"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^BUILD SUCCESSFUL in"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^\\d+ actionable task"
+
+[[pipeline]]
+action = "remove_empty_lines"

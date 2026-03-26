@@ -1,79 +1,71 @@
 use clap::{Parser, Subcommand};
 
-/// `pure` – PureCtx context purification utility for LLMs.
+/// `pure` – PureCtx command-output purification proxy for LLMs.
 ///
-/// Reads from stdin and writes purified output to stdout.  Various
-/// sub-commands transform the stream in composable ways; pipe them together
-/// for multi-step processing:
+/// Wraps any command and filters its output to reduce noise before feeding it
+/// into an LLM. Built-in filters activate automatically for known tools
+/// (mvn, npm, cargo, dotnet, gradle). Custom filters can be added via
+/// `pure filter add <file>`.
 ///
 /// ```text
-/// cat file.rs | pure sift --exclude "^#" | pure clean | pure stats
+/// pure mvn clean install
+/// pure npm run build
+/// pure cargo test
 /// ```
 #[derive(Debug, Parser)]
 #[command(
     name = "pure",
     version,
-    about = "Purify LLM context: filter, extract, clean and measure",
+    about = "Purify command output for LLM context",
     long_about = None,
 )]
 pub struct Cli {
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
+
+    /// The command to proxy and filter (everything after `pure`).
+    ///
+    /// When no subcommand is recognized, the remaining arguments are treated
+    /// as a command to execute.
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    pub external: Vec<String>,
 }
 
-/// Top-level sub-commands.
+/// Management sub-commands (filter add / list / show).
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    /// Filter lines using regular expressions (include / exclude).
-    Sift(SiftArgs),
-    /// Extract structural blocks between start and end patterns.
-    Snip(SnipArgs),
-    /// Remove comments, blank lines, and excess indentation.
-    Clean(CleanArgs),
-    /// Report byte / token statistics to stderr (passes data through).
-    Stats,
+    /// Manage filters (add, list, show).
+    Filter(FilterCommand),
 }
 
-/// Arguments for the `sift` sub-command.
+/// Sub-commands under `pure filter`.
 #[derive(Debug, clap::Args)]
-pub struct SiftArgs {
-    /// Keep only lines matching this regex.
-    #[arg(long, value_name = "REGEX")]
-    pub include: Option<String>,
-
-    /// Drop lines matching this regex.
-    #[arg(long, value_name = "REGEX")]
-    pub exclude: Option<String>,
+pub struct FilterCommand {
+    #[command(subcommand)]
+    pub action: FilterAction,
 }
 
-/// Arguments for the `snip` sub-command.
-#[derive(Debug, clap::Args)]
-pub struct SnipArgs {
-    /// Regex that marks the beginning of a block.
-    #[arg(long, value_name = "PATTERN")]
-    pub start: String,
-
-    /// Regex that marks the end of a block.
-    #[arg(long, value_name = "PATTERN")]
-    pub end: String,
-
-    /// Include the delimiter lines themselves in the output.
-    #[arg(long, default_value_t = false)]
-    pub inclusive: bool,
+/// Actions available for `pure filter`.
+#[derive(Debug, Subcommand)]
+pub enum FilterAction {
+    /// Install a custom filter from a TOML file.
+    Add(FilterAddArgs),
+    /// List all available filters (built-in + custom).
+    List,
+    /// Show the contents of a named filter.
+    Show(FilterShowArgs),
 }
 
-/// Arguments for the `clean` sub-command.
+/// Arguments for `pure filter add`.
 #[derive(Debug, clap::Args)]
-pub struct CleanArgs {
-    /// Do not strip single-line or block comments.
-    #[arg(long)]
-    pub no_comments: bool,
+pub struct FilterAddArgs {
+    /// Path to the filter TOML file to install.
+    pub file: String,
+}
 
-    /// Do not remove blank lines.
-    #[arg(long)]
-    pub no_empty_lines: bool,
-
-    /// Do not collapse leading indentation to a single space.
-    #[arg(long)]
-    pub no_minify_indent: bool,
+/// Arguments for `pure filter show`.
+#[derive(Debug, clap::Args)]
+pub struct FilterShowArgs {
+    /// Name of the filter to display.
+    pub name: String,
 }

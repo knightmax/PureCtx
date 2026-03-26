@@ -1,0 +1,40 @@
+name = "cargo"
+version = 1
+description = "Reduces Cargo build output noise for LLM context"
+
+[match]
+command = "cargo"
+
+[[pipeline]]
+action = "strip_ansi"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^\\s+Compiling "
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^\\s+Downloading "
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^\\s+Downloaded "
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^\\s+Updating "
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^\\s+Locking "
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^\\s+Checking "
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^\\s+Fresh "
+
+[[pipeline]]
+action = "remove_empty_lines"

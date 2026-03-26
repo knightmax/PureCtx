@@ -1,0 +1,40 @@
+name = "dotnet"
+version = 1
+description = "Reduces .NET CLI output noise for LLM context"
+
+[match]
+command = "dotnet"
+
+[[pipeline]]
+action = "strip_ansi"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^  Determining projects to restore"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^  Restored "
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^  All projects are up-to-date"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^  Nothing to do"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^Build succeeded\\.$"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^\\s+0 Warning\\(s\\)$"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^\\s+0 Error\\(s\\)$"
+
+[[pipeline]]
+action = "remove_empty_lines"

@@ -8,178 +8,79 @@ fn cmd() -> Command {
     Command::cargo_bin("pure").expect("binary `pure` not found")
 }
 
-// ── sift ───────────────────────────────────────────────────────────────────
+// ── Proxy mode ─────────────────────────────────────────────────────────────
 
 #[test]
-fn sift_include_keeps_matching_lines() {
+fn proxy_runs_echo_command() {
     cmd()
-        .args(["sift", "--include", "TODO"])
-        .write_stdin("// TODO: fix this\nlet x = 1;\n// TODO: later\n")
+        .args(["echo", "hello world"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("TODO"))
-        .stdout(predicate::str::contains("let x = 1;").not());
+        .stdout(predicate::str::contains("hello world"));
 }
 
 #[test]
-fn sift_exclude_removes_matching_lines() {
+fn proxy_no_command_shows_error() {
     cmd()
-        .args(["sift", "--exclude", "^#"])
-        .write_stdin("# comment\ncode line\n# another\n")
         .assert()
-        .success()
-        .stdout("code line\n");
+        .failure()
+        .stderr(predicate::str::contains("no command specified"));
 }
 
 #[test]
-fn sift_include_and_exclude_combined() {
+fn proxy_nonexistent_command_fails() {
     cmd()
-        .args(["sift", "--include", "fn", "--exclude", "test"])
-        .write_stdin("fn main() {}\nfn test_it() {}\npub fn run() {}\n")
-        .assert()
-        .success()
-        .stdout("fn main() {}\npub fn run() {}\n");
-}
-
-#[test]
-fn sift_no_args_passes_everything() {
-    cmd()
-        .args(["sift"])
-        .write_stdin("hello\nworld\n")
-        .assert()
-        .success()
-        .stdout("hello\nworld\n");
-}
-
-#[test]
-fn sift_invalid_regex_exits_nonzero() {
-    cmd()
-        .args(["sift", "--include", "[invalid"])
-        .write_stdin("")
+        .args(["nonexistent_command_xyz_12345"])
         .assert()
         .failure();
 }
 
-// ── snip ───────────────────────────────────────────────────────────────────
+#[test]
+fn proxy_preserves_exit_code_on_error() {
+    // `false` exits with code 1
+    cmd().args(["false"]).assert().failure();
+}
+
+// ── Filter management ──────────────────────────────────────────────────────
 
 #[test]
-fn snip_exclusive_extracts_block() {
-    let input = "before\nBEGIN\nline1\nline2\nEND\nafter\n";
+fn filter_list_shows_builtins() {
     cmd()
-        .args(["snip", "--start", "BEGIN", "--end", "END"])
-        .write_stdin(input)
+        .args(["filter", "list"])
         .assert()
         .success()
-        .stdout("line1\nline2\n");
+        .stdout(predicate::str::contains("maven"))
+        .stdout(predicate::str::contains("npm"))
+        .stdout(predicate::str::contains("cargo"))
+        .stdout(predicate::str::contains("dotnet"))
+        .stdout(predicate::str::contains("gradle"));
 }
 
 #[test]
-fn snip_inclusive_includes_delimiters() {
-    let input = "before\nBEGIN\nline1\nEND\nafter\n";
+fn filter_show_displays_filter() {
     cmd()
-        .args(["snip", "--start", "BEGIN", "--end", "END", "--inclusive"])
-        .write_stdin(input)
+        .args(["filter", "show", "maven"])
         .assert()
         .success()
-        .stdout("BEGIN\nline1\nEND\n");
+        .stdout(predicate::str::contains("maven"))
+        .stdout(predicate::str::contains("pipeline"));
 }
 
 #[test]
-fn snip_multiple_blocks() {
-    let input = "A\nBEGIN\nx\nEND\nB\nBEGIN\ny\nEND\nC\n";
+fn filter_show_unknown_fails() {
     cmd()
-        .args(["snip", "--start", "BEGIN", "--end", "END"])
-        .write_stdin(input)
+        .args(["filter", "show", "nonexistent_filter_xyz"])
         .assert()
-        .success()
-        .stdout("x\ny\n");
-}
-
-// ── clean ──────────────────────────────────────────────────────────────────
-
-#[test]
-fn clean_removes_line_comments() {
-    cmd()
-        .args(["clean", "--no-empty-lines", "--no-minify-indent"])
-        .write_stdin("let x = 1; // assign x\n")
-        .assert()
-        .success()
-        .stdout("let x = 1;\n");
+        .failure()
+        .stderr(predicate::str::contains("not found"));
 }
 
 #[test]
-fn clean_removes_hash_comments() {
+fn filter_add_nonexistent_file_fails() {
     cmd()
-        .args(["clean", "--no-empty-lines", "--no-minify-indent"])
-        .write_stdin("x = 1  # python\n")
+        .args(["filter", "add", "/tmp/nonexistent_filter_xyz.toml"])
         .assert()
-        .success()
-        .stdout("x = 1\n");
-}
-
-#[test]
-fn clean_removes_block_comments_single_line() {
-    cmd()
-        .args(["clean", "--no-empty-lines", "--no-minify-indent"])
-        .write_stdin("int x = /* secret */ 1;\n")
-        .assert()
-        .success()
-        .stdout("int x =  1;\n");
-}
-
-#[test]
-fn clean_removes_empty_lines() {
-    cmd()
-        .args(["clean", "--no-comments", "--no-minify-indent"])
-        .write_stdin("a\n\nb\n   \nc\n")
-        .assert()
-        .success()
-        .stdout("a\nb\nc\n");
-}
-
-#[test]
-fn clean_minifies_indent() {
-    cmd()
-        .args(["clean", "--no-comments", "--no-empty-lines"])
-        .write_stdin("    indented\n")
-        .assert()
-        .success()
-        .stdout(" indented\n");
-}
-
-#[test]
-fn clean_preserves_urls() {
-    // `https://` must NOT be treated as a `//` comment
-    cmd()
-        .args(["clean", "--no-minify-indent"])
-        .write_stdin("// see https://example.com for details\n")
-        .assert()
-        .success()
-        // The whole line is a comment starting with //; the resulting empty
-        // line is then removed by the default remove_empty_lines=true.
-        .stdout("");
-}
-
-// ── stats ──────────────────────────────────────────────────────────────────
-
-#[test]
-fn stats_passes_data_through() {
-    cmd()
-        .args(["stats"])
-        .write_stdin("hello\nworld\n")
-        .assert()
-        .success()
-        .stdout("hello\nworld\n");
-}
-
-#[test]
-fn stats_writes_to_stderr() {
-    cmd()
-        .args(["stats"])
-        .write_stdin("hello\nworld\n")
-        .assert()
-        .success()
-        .stderr(predicate::str::contains("[stats]"));
+        .failure();
 }
 
 // ── unit tests (via library) ───────────────────────────────────────────────
@@ -189,9 +90,11 @@ mod unit {
     use purectx::application::PurificationEngine;
     use purectx::domain::Purifier;
     use purectx::domain::clean::{CleanOptions, CleanPurifier};
+    use purectx::domain::filter::FilterFile;
     use purectx::domain::sift::SiftPurifier;
     use purectx::domain::snip::SnipPurifier;
     use purectx::domain::stats::StatsPurifier;
+    use purectx::infra::builtin::load_builtin_filters;
     use std::io::Cursor;
 
     fn run_engine(purifiers: Vec<Box<dyn Purifier>>, input: &[u8]) -> Vec<u8> {
@@ -200,6 +103,106 @@ mod unit {
         let engine = PurificationEngine::new(reader, &mut output, purifiers);
         engine.run().expect("engine failed");
         output
+    }
+
+    // ── FilterFile tests ───────────────────────────────────────────────────
+
+    #[test]
+    fn filter_parses_valid_toml() {
+        let toml = r#"
+name = "test"
+version = 1
+description = "Test filter"
+
+[match]
+command = "test"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^DEBUG"
+"#;
+        let filter = FilterFile::from_toml(toml).unwrap();
+        assert_eq!(filter.name, "test");
+        assert_eq!(filter.match_rules.command, "test");
+        assert_eq!(filter.pipeline.len(), 1);
+    }
+
+    #[test]
+    fn filter_rejects_empty_pipeline() {
+        let toml = r#"
+name = "empty"
+version = 1
+
+[match]
+command = "test"
+
+pipeline = []
+"#;
+        assert!(FilterFile::from_toml(toml).is_err());
+    }
+
+    #[test]
+    fn filter_rejects_invalid_regex() {
+        let toml = r#"
+name = "bad"
+version = 1
+
+[match]
+command = "test"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "[invalid"
+"#;
+        assert!(FilterFile::from_toml(toml).is_err());
+    }
+
+    #[test]
+    fn filter_matches_command() {
+        let toml = r#"
+name = "test"
+version = 1
+
+[match]
+command = "mvn"
+aliases = ["mvnw", "./mvnw"]
+
+[[pipeline]]
+action = "remove_empty_lines"
+"#;
+        let filter = FilterFile::from_toml(toml).unwrap();
+        assert!(filter.matches("mvn", &[]));
+        assert!(filter.matches("mvnw", &[]));
+        assert!(filter.matches("./mvnw", &[]));
+        assert!(!filter.matches("npm", &[]));
+    }
+
+    #[test]
+    fn filter_matches_with_path() {
+        let toml = r#"
+name = "test"
+version = 1
+
+[match]
+command = "mvn"
+
+[[pipeline]]
+action = "remove_empty_lines"
+"#;
+        let filter = FilterFile::from_toml(toml).unwrap();
+        assert!(filter.matches("/usr/bin/mvn", &[]));
+    }
+
+    #[test]
+    fn builtin_filters_load_successfully() {
+        let filters = load_builtin_filters().unwrap();
+        assert!(filters.len() >= 5);
+        let names: Vec<&str> = filters.iter().map(|f| f.name.as_str()).collect();
+        assert!(names.contains(&"maven"));
+        assert!(names.contains(&"npm"));
+        assert!(names.contains(&"cargo"));
+        assert!(names.contains(&"dotnet"));
+        assert!(names.contains(&"gradle"));
     }
 
     // ── SiftPurifier unit tests ────────────────────────────────────────────

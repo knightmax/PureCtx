@@ -1,0 +1,41 @@
+name = "maven"
+version = 1
+description = "Reduces Maven build output noise for LLM context"
+
+[match]
+command = "mvn"
+aliases = ["mvnw", "./mvnw"]
+
+[[pipeline]]
+action = "strip_ansi"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^\\[INFO\\] Download"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^Downloading from "
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^Downloaded from "
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^Progress \\("
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^\\[INFO\\] --- .+ ---$"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^\\[INFO\\] -+$"
+
+[[pipeline]]
+action = "remove_lines"
+pattern = "^\\[INFO\\]\\s*$"
+
+[[pipeline]]
+action = "remove_empty_lines"

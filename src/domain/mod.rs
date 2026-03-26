@@ -1,5 +1,6 @@
 /// Domain layer: core abstractions and purifier implementations.
 pub mod clean;
+pub mod filter;
 pub mod sift;
 pub mod snip;
 pub mod stats;
