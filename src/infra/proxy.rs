@@ -6,6 +6,16 @@ use regex::bytes::Regex;
 
 use crate::domain::filter::{FilterFile, PipelineAction};
 
+/// Result of running a proxied command, including filtering statistics.
+pub struct ProxyResult {
+    /// Exit code of the child process.
+    pub exit_code: i32,
+    /// Total input bytes (stdout + stderr before filtering).
+    pub input_bytes: u64,
+    /// Total output bytes (stdout + stderr after filtering).
+    pub output_bytes: u64,
+}
+
 /// Execute a command, capture its combined stdout+stderr, apply the matched
 /// filter pipeline, and write the purified output to the real stdout.
 ///
@@ -15,11 +25,15 @@ use crate::domain::filter::{FilterFile, PipelineAction};
 /// * `filter`   – An optional filter to apply to the output.
 ///
 /// # Returns
-/// The exit code of the child process.
+/// A [`ProxyResult`] containing exit code and byte statistics.
 ///
 /// # Errors
 /// Returns an error if the child process cannot be spawned or if I/O fails.
-pub fn run_proxy(command: &str, args: &[String], filter: Option<&FilterFile>) -> Result<i32> {
+pub fn run_proxy(
+    command: &str,
+    args: &[String],
+    filter: Option<&FilterFile>,
+) -> Result<ProxyResult> {
     let mut child = Command::new(command)
         .args(args)
         .stdout(Stdio::piped())
@@ -40,12 +54,20 @@ pub fn run_proxy(command: &str, args: &[String], filter: Option<&FilterFile>) ->
     });
 
     let stdout_reader = BufReader::new(child_stdout);
-    let stdout_writer = BufWriter::new(io::stdout().lock());
+
+    let mut input_bytes: u64 = 0;
+    let mut output_bytes: u64 = 0;
 
     if let Some(f) = filter {
-        process_stream(stdout_reader, stdout_writer, &f.pipeline)?;
+        let mut counting_writer = CountingWriter::new(BufWriter::new(io::stdout().lock()));
+        let in_bytes = process_stream(stdout_reader, &mut counting_writer, &f.pipeline)?;
+        input_bytes += in_bytes;
+        output_bytes += counting_writer.bytes_written;
     } else {
-        passthrough(stdout_reader, stdout_writer)?;
+        let mut counting_writer = CountingWriter::new(BufWriter::new(io::stdout().lock()));
+        passthrough(stdout_reader, &mut counting_writer)?;
+        input_bytes += counting_writer.bytes_written;
+        output_bytes += counting_writer.bytes_written;
     }
 
     // Now handle stderr
@@ -55,9 +77,13 @@ pub fn run_proxy(command: &str, args: &[String], filter: Option<&FilterFile>) ->
 
     if let Some(f) = filter {
         let stderr_reader = BufReader::new(stderr_data.as_slice());
-        let stderr_writer = BufWriter::new(io::stderr().lock());
-        process_stream(stderr_reader, stderr_writer, &f.pipeline)?;
+        let mut counting_writer = CountingWriter::new(BufWriter::new(io::stderr().lock()));
+        let in_bytes = process_stream(stderr_reader, &mut counting_writer, &f.pipeline)?;
+        input_bytes += in_bytes;
+        output_bytes += counting_writer.bytes_written;
     } else {
+        input_bytes += stderr_data.len() as u64;
+        output_bytes += stderr_data.len() as u64;
         let mut stderr_out = io::stderr().lock();
         stderr_out
             .write_all(&stderr_data)
@@ -65,21 +91,56 @@ pub fn run_proxy(command: &str, args: &[String], filter: Option<&FilterFile>) ->
     }
 
     let status = child.wait().context("failed to wait for child process")?;
-    Ok(status.code().unwrap_or(1))
+    Ok(ProxyResult {
+        exit_code: status.code().unwrap_or(1),
+        input_bytes,
+        output_bytes,
+    })
+}
+
+/// A writer wrapper that counts bytes written.
+struct CountingWriter<W: Write> {
+    inner: W,
+    bytes_written: u64,
+}
+
+impl<W: Write> CountingWriter<W> {
+    fn new(inner: W) -> Self {
+        Self {
+            inner,
+            bytes_written: 0,
+        }
+    }
+}
+
+impl<W: Write> Write for CountingWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let n = self.inner.write(buf)?;
+        self.bytes_written += n as u64;
+        Ok(n)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.flush()
+    }
 }
 
 /// Apply a filter pipeline to a buffered reader, writing results to a writer.
+///
+/// Returns the number of input bytes read.
 fn process_stream<R: BufRead, W: Write>(
     reader: R,
-    mut writer: W,
+    writer: &mut W,
     pipeline: &[PipelineAction],
-) -> Result<()> {
+) -> Result<u64> {
     // Compile regex patterns once.
     let compiled = compile_pipeline(pipeline)?;
 
     let mut lines: Vec<Vec<u8>> = Vec::new();
+    let mut input_bytes: u64 = 0;
     for line_result in reader.split(b'\n') {
         let line = line_result.context("failed to read line")?;
+        input_bytes += line.len() as u64 + 1; // +1 for the newline
         lines.push(line);
     }
 
@@ -95,7 +156,7 @@ fn process_stream<R: BufRead, W: Write>(
     }
     writer.flush().context("failed to flush output")?;
 
-    Ok(())
+    Ok(input_bytes)
 }
 
 /// Pass data through without any filtering.

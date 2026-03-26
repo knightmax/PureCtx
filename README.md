@@ -124,6 +124,69 @@ on_error = "passthrough"  # default: output raw result if filter fails
 on_error = "fail"          # propagate the error
 ```
 
+## Gain Dashboard
+
+`pure` tracks token savings across all filtered commands. View savings with:
+
+```bash
+pure gain
+```
+
+```
+  pure — Token Savings Report
+  ══════════════════════════════
+
+  Commands filtered     3
+  Tokens saved          32.8K
+  Avg savings           93.6%
+  Efficiency            Elite
+  Total time            20.3s
+
+  ███████████████████░ 94%
+
+  Top commands by tokens saved
+
+  Command                         Runs     Saved  Savings  Impact
+  ──────────────────────────────  ─────  ────────  ───────  ────────────
+  cargo test                         1     19.5K    97.5%  ████████████
+  mvn clean install                  1      9.0K    90.0%  ██████░░░░░░
+  npm run build                      1      4.2K    85.0%  ███░░░░░░░░░
+```
+
+### Views
+
+| Flag | Description |
+|------|-------------|
+| *(none)* | Full dashboard: KPIs + progress bar + top 10 commands |
+| `--daily` | Daily breakdown (last 7 days) |
+| `--weekly` | Weekly breakdown (last 8 weeks) |
+| `--monthly` | Monthly breakdown (last 6 months) |
+| `--top N` | Top N commands by tokens saved |
+| `--history N` | Last N filtered commands |
+| `--json` | Full report as JSON (summary + daily + by_command) |
+| `--csv` | Daily stats as CSV |
+
+### Efficiency tiers
+
+| Tier | Threshold |
+|------|-----------|
+| Elite | ≥ 90% |
+| Great | ≥ 70% |
+| Good | ≥ 50% |
+| Fair | ≥ 30% |
+| Low | < 30% |
+
+### Tracking database
+
+Savings are stored in `~/.local/share/purectx/tracking.json`. Records older
+than 90 days are automatically cleaned up.
+
+**What's tracked:** command, filter name, input/output bytes and tokens, savings
+percentage, execution time, timestamp.
+
+**What's NOT tracked:** passthrough commands (no matching filter) and commands
+with 0 input bytes.
+
 ## Installation
 
 ```bash
@@ -141,6 +204,7 @@ src/
 ├── domain/          # Core abstractions
 │   ├── mod.rs       #   Purifier trait
 │   ├── filter.rs    #   FilterFile model (TOML-backed)
+│   ├── tracking.rs  #   TrackingDb + TrackingRecord (JSON-backed)
 │   ├── sift.rs      #   SiftPurifier – regex filtering
 │   ├── snip.rs      #   SnipPurifier – block extraction
 │   ├── clean.rs     #   CleanPurifier – comment & whitespace removal
@@ -150,7 +214,8 @@ src/
 ├── infra/
 │   ├── cli.rs       # Clap v4 CLI definitions
 │   ├── io.rs        # stdin/stdout adapter with SIGPIPE handling
-│   ├── proxy.rs     # Command proxy (spawn, capture, filter)
+│   ├── proxy.rs     # Command proxy (spawn, capture, filter, track)
+│   ├── gain.rs      # Gain dashboard display + export (JSON/CSV)
 │   ├── config.rs    # Filter directory management (~/.config/purectx/)
 │   ├── builtin.rs   # Built-in filter loader
 │   └── filters/     # Embedded TOML filter definitions
@@ -172,9 +237,10 @@ tests/
 | `clap 4` | CLI argument parsing (derive macros) |
 | `regex 1` | Byte-level regular expressions |
 | `memchr 2` | Fast byte / substring search |
-| `serde 1` | Filter TOML deserialization |
+| `serde 1` | Filter TOML + tracking JSON serialization |
+| `serde_json 1` | JSON serialization for tracking db + export |
 | `toml 0.8` | TOML parser |
-| `dirs 5` | Platform config directory (`~/.config/`) |
+| `dirs 5` | Platform config/data directory (`~/.config/`, `~/.local/share/`) |
 | `thiserror 1` | Ergonomic error types |
 | `anyhow 1` | Error propagation in the application layer |
 
@@ -190,7 +256,8 @@ The test suite covers:
 - Unit tests for all purifiers and the engine
 - Filter TOML parsing and matching
 - Pipeline actions (remove/keep lines, ANSI strip, head/tail)
-- CLI integration tests (proxy, filter management)
+- Tracking database persistence, KPIs, cleanup, and formatting
+- CLI integration tests (proxy, filter management, gain dashboard)
 
 ## License
 

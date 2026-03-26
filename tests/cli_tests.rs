@@ -83,6 +83,62 @@ fn filter_add_nonexistent_file_fails() {
         .failure();
 }
 
+// ── Gain dashboard ─────────────────────────────────────────────────────────
+
+#[test]
+fn gain_shows_empty_dashboard() {
+    cmd()
+        .args(["gain"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Token Savings Report"));
+}
+
+#[test]
+fn gain_json_outputs_valid_json() {
+    cmd()
+        .args(["gain", "--json"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("summary"))
+        .stdout(predicate::str::contains("daily"))
+        .stdout(predicate::str::contains("by_command"));
+}
+
+#[test]
+fn gain_csv_outputs_header() {
+    cmd()
+        .args(["gain", "--csv"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("period,commands,input_tokens"));
+}
+
+#[test]
+fn gain_daily_works() {
+    cmd().args(["gain", "--daily"]).assert().success();
+}
+
+#[test]
+fn gain_weekly_works() {
+    cmd().args(["gain", "--weekly"]).assert().success();
+}
+
+#[test]
+fn gain_monthly_works() {
+    cmd().args(["gain", "--monthly"]).assert().success();
+}
+
+#[test]
+fn gain_top_works() {
+    cmd().args(["gain", "--top", "5"]).assert().success();
+}
+
+#[test]
+fn gain_history_works() {
+    cmd().args(["gain", "--history", "10"]).assert().success();
+}
+
 // ── unit tests (via library) ───────────────────────────────────────────────
 
 #[cfg(test)]

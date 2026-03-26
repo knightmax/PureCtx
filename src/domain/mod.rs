@@ -4,6 +4,7 @@ pub mod filter;
 pub mod sift;
 pub mod snip;
 pub mod stats;
+pub mod tracking;
 
 /// A `Purifier` processes a single line of bytes and decides whether to keep
 /// it (possibly transformed) or discard it.

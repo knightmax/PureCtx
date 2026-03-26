@@ -1,10 +1,14 @@
+use std::time::Instant;
+
 use anyhow::{Context, Result, bail};
 use clap::Parser;
 
 use purectx::domain::filter::FilterFile;
+use purectx::domain::tracking::{TrackingDb, TrackingRecord};
 use purectx::infra::builtin::load_builtin_filters;
 use purectx::infra::cli::{Cli, Commands, FilterAction};
 use purectx::infra::config;
+use purectx::infra::gain::handle_gain;
 use purectx::infra::proxy::run_proxy;
 
 fn main() {
@@ -24,6 +28,11 @@ fn run() -> Result<()> {
         return handle_filter_command(cmd.action);
     }
 
+    // Handle the `gain` dashboard subcommand.
+    if let Some(Commands::Gain(ref args)) = cli.command {
+        return handle_gain(args);
+    }
+
     // Otherwise, treat everything as an external command to proxy.
     if cli.external.is_empty() {
         bail!(
@@ -41,8 +50,32 @@ fn run() -> Result<()> {
         eprintln!("[pure] using filter: {} ({})", f.name, f.description);
     }
 
-    let exit_code = run_proxy(command, &args, filter.as_ref())?;
-    std::process::exit(exit_code);
+    let start = Instant::now();
+    let result = run_proxy(command, &args, filter.as_ref())?;
+    let duration_ms = start.elapsed().as_millis() as u64;
+
+    // Track filtered command savings.
+    if let Some(ref f) = filter
+        && result.input_bytes > 0
+    {
+        let full_command = std::iter::once(command.as_str())
+            .chain(args.iter().map(|s| s.as_str()))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let rec = TrackingRecord::new(
+            &full_command,
+            &f.name,
+            result.input_bytes,
+            result.output_bytes,
+            duration_ms,
+        );
+        // Best-effort: don't fail the command if tracking write fails.
+        if let Ok(mut db) = TrackingDb::load() {
+            let _ = db.record(rec);
+        }
+    }
+
+    std::process::exit(result.exit_code);
 }
 
 /// Find the first filter that matches the given command and arguments.

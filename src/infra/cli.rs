@@ -31,11 +31,13 @@ pub struct Cli {
     pub external: Vec<String>,
 }
 
-/// Management sub-commands (filter add / list / show).
+/// Management sub-commands (filter add / list / show, gain).
 #[derive(Debug, Subcommand)]
 pub enum Commands {
     /// Manage filters (add, list, show).
     Filter(FilterCommand),
+    /// Show token savings dashboard.
+    Gain(GainArgs),
 }
 
 /// Sub-commands under `pure filter`.
@@ -68,4 +70,36 @@ pub struct FilterAddArgs {
 pub struct FilterShowArgs {
     /// Name of the filter to display.
     pub name: String,
+}
+
+/// Arguments for `pure gain`.
+#[derive(Debug, clap::Args)]
+pub struct GainArgs {
+    /// Show daily breakdown (last 7 days).
+    #[arg(long)]
+    pub daily: bool,
+
+    /// Show weekly breakdown (last 8 weeks).
+    #[arg(long)]
+    pub weekly: bool,
+
+    /// Show monthly breakdown (last 6 months).
+    #[arg(long)]
+    pub monthly: bool,
+
+    /// Show top N commands by tokens saved.
+    #[arg(long, value_name = "N")]
+    pub top: Option<usize>,
+
+    /// Show last N filtered commands.
+    #[arg(long, value_name = "N")]
+    pub history: Option<usize>,
+
+    /// Output full report as JSON.
+    #[arg(long)]
+    pub json: bool,
+
+    /// Output daily stats as CSV.
+    #[arg(long)]
+    pub csv: bool,
 }
